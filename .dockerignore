@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+palo.json
+tests_sanity.py
+.git/
+.gitignore
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md

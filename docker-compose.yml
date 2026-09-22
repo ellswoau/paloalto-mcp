@@ -1,0 +1,32 @@
+# Palo Alto Branches MCP server -- Docker Compose (network daemon mode).
+#
+# This composes the server as a long-running HTTP/SSE daemon so an MCP client
+# can reach it over the network. For the embedded/stdio pattern (single MCP
+# client such as Claude Desktop spawning the container), see the README
+# "Running via Docker" section instead.
+
+services:
+  paloalto-branches-mcp:
+    build: .
+    image: paloalto-branches-mcp:latest
+    container_name: paloalto-branches-mcp
+    restart: unless-stopped
+    command: ["--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    # Credentials. Prefer a mounted config file (see volumes) or PALO_* env.
+    environment:
+      PALO_CONFIG_FILE: /config/palo.json
+      # Require a bearer token on the MCP endpoints (see /health for the
+      # credential-free health check). Generate with: `openssl rand -hex 32`.
+      PALO_MCP_AUTH_TOKEN: ${PALO_MCP_AUTH_TOKEN:?set this to a strong random value}
+    volumes:
+      # Mount a config file written by `config init` (0600). The container runs
+      # as a non-root user; chown/chmod accordingly or use PALO_* env vars.
+      - ./palo.json:/config/palo.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=6).close()"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+      start_period: 20s
