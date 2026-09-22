@@ -311,10 +311,13 @@ paloalto-branches-mcp/
 
 ## Notes / assumptions
 
-- `list_sdwan_policies` uses `show sdwan policy`. The notes listed the
-  configured SD-WAN policy names without showing the command that produced
-  them; if a PAN-OS build names it differently, use `run_show_command` to run
-  the correct `show` command, or adjust `sdwan_tools.py` (one line).
+- `list_sdwan_policies` uses `show sdwan rule`. The original notes listed the
+  configured SD-WAN policy names without the command that produced them; the
+  guess `show sdwan policy` is rejected by PAN-OS with `Invalid syntax.`. The
+  correct operational command is `show sdwan rule` (confirmed live on PAN-OS
+  11.1.10-h1 — `show sdwan ?` lists `rule  Show SD-WAN rules`). It returns the
+  rules with their ids; `list_sdwan_policies` also exposes a `policies` list of
+  names and a `rules` list of `{id, name}`.
 - The `clear session` commands from the notes are exposed as separate tools
   (`clear_session_by_id`, `clear_session_by_source`,
   `clear_sessions_by_subnet`, `clear_dhcp_sessions`).

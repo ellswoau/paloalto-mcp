@@ -9,7 +9,8 @@ DC is ``74.204.122.83/28`` and the Indianapolis secondary DC is
 """
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+import re
+from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from fastmcp import FastMCP
@@ -19,6 +20,13 @@ from ..client import get_client
 from ._common import run_and_report, validate_policy_name, validate_session_id
 
 CONNECTION_ALL_COMMAND = "show sdwan connection all"
+#: List the configured SD-WAN rules/policies. On PAN-OS the rules live under
+#: ``show sdwan rule`` (the ``show sdwan policy`` form does not exist and is
+#: rejected with 'Invalid syntax.').
+LIST_POLICIES_COMMAND = "show sdwan rule"
+
+#: A rule row begins with the numeric rule id at the start of the line.
+_RULE_ROW_RE = re.compile(r"^\s*(\d+)\s+(\S.*)$")
 
 #: Known datacenter underlay subnet -> friendly name (from the notes).
 DATACENTERS = {
@@ -38,6 +46,27 @@ def distribution_command(policy_name: str) -> str:
 
 def path_select_command(session_id) -> str:
     return f"show sdwan session path-select session-id {session_id}"
+
+
+def parse_sdwan_rules(text: str) -> List[dict]:
+    """Extract ``{id, name}`` pairs from ``show sdwan rule`` output.
+
+    Each rule starts with its numeric id; the rule name sits in the ``Name``
+    column followed by the ``Distribution`` value (always ``Top-down``). When a
+    long name overflows its column it is glued to ``Top-down`` with no space,
+    so the name is taken as everything before the ``Top-down`` token. The
+    per-rule ``Tag``/``Weight`` continuation lines do not start with an id and
+    are ignored.
+    """
+    rules: List[dict] = []
+    for line in (text or "").splitlines():
+        m = _RULE_ROW_RE.match(line)
+        if not m:
+            continue
+        name = re.split(r"\s*Top-down\b", m.group(2), maxsplit=1)[0].strip()
+        if name:
+            rules.append({"id": m.group(1), "name": name})
+    return rules
 
 
 def register(mcp: "FastMCP", config: "PaloConfig") -> None:
@@ -66,9 +95,16 @@ def register(mcp: "FastMCP", config: "PaloConfig") -> None:
     def list_sdwan_policies(store: int, timeout: Optional[int] = None) -> dict:
         """List the SD-WAN traffic-steering policies configured on a branch
         (e.g. 'Voice to Internet', 'Guest to Internet'). Use a returned policy
-        name with sdwan_session_distribution."""
+        name with sdwan_session_distribution. Returns a ``policies`` list of
+        names plus a ``rules`` list of ``{id, name}``."""
         client = get_client(config)
-        return run_and_report(client, store, "show sdwan policy", timeout=timeout)
+        result = run_and_report(client, store, LIST_POLICIES_COMMAND,
+                                timeout=timeout)
+        rules = parse_sdwan_rules(result.get("output") or "")
+        if rules:
+            result["rules"] = rules
+            result["policies"] = [r["name"] for r in rules]
+        return result
 
     @mcp.tool()
     def sdwan_session_distribution(store: int, policy_name: str,

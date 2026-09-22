@@ -253,6 +253,31 @@ class ParsingTest(unittest.TestCase):
         self.assertEqual(rows[0]["hostname"], "Polycom64167fe9cb97")
         self.assertEqual(rows[0]["lease_time"], "Tue Sep 22 08:42:26 2026")
 
+    SDWAN_RULE_SAMPLE = (
+        "ID  Name                            Distribution Latency   Jitter    Pkt Loss  Tag            Weight\n"
+        "--- ------------------------------- ------------ --------- --------- --------- -------------- ------\n"
+        "9   Public VDI to Internet          Top-down     2000ms(M) 1000ms(M) 99(M)     Primary Internet Paths\n"
+        "                                                                               Backup Internet Paths\n"
+        "2   Voice to Internet               Top-down     135ms(M)  10ms(M)   18(M)     Primary Internet Paths\n"
+        "                                                                               Backup Internet Paths\n"
+        "7   SDWAN Hub Remote Access Indy DatacenterTop-down     300ms(L)  130ms(L)  10(L)     Primary Internet Paths\n"
+        "                                                                               Backup Internet Paths\n"
+        "6   All Traffic - Catch-all         Top-down     2000ms(M) 1000ms(M) 99(M)     Primary Internet Paths\n"
+    )
+
+    def test_parse_sdwan_rules(self):
+        from paloalto_branches_mcp.tools.sdwan_tools import parse_sdwan_rules
+        rules = parse_sdwan_rules(self.SDWAN_RULE_SAMPLE)
+        self.assertEqual(
+            [r["name"] for r in rules],
+            ["Public VDI to Internet", "Voice to Internet",
+             "SDWAN Hub Remote Access Indy Datacenter",
+             "All Traffic - Catch-all"],
+        )
+        self.assertEqual(rules[1], {"id": "2", "name": "Voice to Internet"})
+        # Continuation (Tag/Weight) lines must not be parsed as rules.
+        self.assertEqual(len(rules), 4)
+
     def test_no_table_returns_empty(self):
         from paloalto_branches_mcp.tools._common import parse_table
         self.assertEqual(parse_table("no table here\njust text"), [])
@@ -300,7 +325,7 @@ class ValidationTest(unittest.TestCase):
 EXPECTED_COMMANDS = {
     "show_vpn_flow": "show vpn flow",
     "show_sdwan_connection": "show sdwan connection all",
-    "list_sdwan_policies": "show sdwan policy",
+    "list_sdwan_policies": "show sdwan rule",
     "sdwan_session_distribution": 'show sdwan session distribution policy-name "Voice to Internet"',
     "sdwan_session_path_select": "show sdwan session path-select session-id 261",
     "show_dhcp_leases": "show dhcp server lease interface ethernet1/3.2090",
