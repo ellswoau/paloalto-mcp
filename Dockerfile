@@ -24,7 +24,7 @@ RUN python -m compileall -q paloalto_branches_mcp
 USER palo
 
 # HTTP/SSE transports bind here.
-EXPOSE 8000
+EXPOSE 8003
 
 # Default: stdio transport. Override CMD for a daemon:
 #   docker run -p 8000:8000 paloalto-branches-mcp --transport http --port 8000
